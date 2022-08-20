@@ -21,6 +21,12 @@ namespace EnetTransport
         public List<EnetChannel> Channels = new List<EnetChannel>();
         public int MessageBufferSize = 1024 * 5;
 
+        [UnityEngine.Header("ENET Settings")]
+        public uint PingInterval = 500;
+        public uint TimeoutLimit = 32;
+        public uint TimeoutMinimum = 5000;
+        public uint TimeoutMaximum = 30000;
+
 
         // Runtime / state
         private byte[] messageBuffer;
@@ -88,6 +94,9 @@ namespace EnetTransport
                         payload = new ArraySegment<byte>();
 
                         connectedEnetPeers.Add(@event.Peer.ID, @event.Peer);
+
+                        @event.Peer.PingInterval(PingInterval);
+                        @event.Peer.Timeout(TimeoutLimit, TimeoutMinimum, TimeoutMaximum);
 
                         return NetEventType.Connect;
                     }
@@ -163,6 +172,9 @@ namespace EnetTransport
 
             Peer serverPeer = host.Connect(address, MLAPI_CHANNELS.Length + Channels.Count);
 
+            serverPeer.PingInterval(PingInterval);
+            serverPeer.Timeout(TimeoutLimit, TimeoutMinimum, TimeoutMaximum);
+
             serverPeerId = serverPeer.ID;
         }
 
@@ -189,12 +201,15 @@ namespace EnetTransport
 
             GetEnetConnectionDetails(serverPeerId, out uint peerId);
 
-            connectedEnetPeers[peerId].DisconnectNow(0);
+            if (connectedEnetPeers.ContainsKey(peerId))
+            {
+                connectedEnetPeers[peerId].DisconnectNow(0);
+            }
         }
 
         public override ulong GetCurrentRtt(ulong clientId)
         {
-            GetEnetConnectionDetails(serverPeerId, out uint peerId);
+            GetEnetConnectionDetails(clientId, out uint peerId);
 
             return connectedEnetPeers[peerId].RoundTripTime;
         }
@@ -214,6 +229,7 @@ namespace EnetTransport
             channelIdToName.Clear();
             channelNameToId.Clear();
 
+            connectedEnetPeers.Clear();
 
             // MLAPI Channels
             for (byte i = 0; i < MLAPI_CHANNELS.Length; i++)
